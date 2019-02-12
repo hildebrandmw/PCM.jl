@@ -93,7 +93,7 @@ end
 
 function pmm_writes(before, after, num_memory_channels, idx::Integer)
     writes = Int64[]
-    for i in 0:num_memory_chanels-1
+    for i in 0:num_memory_channels-1
         push!(writes, Lib.getMCCounter(i, Int(PMM_WRITE), before[idx], after[idx]))
     end
     return writes
