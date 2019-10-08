@@ -58,47 +58,18 @@ function sample!(U::UncoreMemoryMonitor)
     return nothing
 end
 
-dram_reads(U::UncoreMemoryMonitor, socket)  = dram_reads(U.before, U.after, U.num_memory_channels, socket + 1)
-dram_writes(U::UncoreMemoryMonitor, socket) = dram_writes(U.before, U.after, U.num_memory_channels, socket + 1)
-pmm_reads(U::UncoreMemoryMonitor, socket)   = pmm_reads(U.before, U.after, U.num_memory_channels, socket + 1)
-pmm_writes(U::UncoreMemoryMonitor, socket)  = pmm_writes(U.before, U.after, U.num_memory_channels, socket + 1)
-pmm_hitrate(U::UncoreMemoryMonitor, socket) = pmm_hitrate(U.before, U.after, U.num_memory_channels, U.num_memory_controllers, socket + 1)
-
 @enum CounterVals::Int32 READ=0 WRITE=1 PMM_READ=2 PMM_WRITE=3
+Base.convert(::Type{T}, c::CounterVals) where {T <: Integer} = T(c)
 
-# Implementation
-function dram_reads(before, after, num_memory_channels, idx::Integer)
-    reads = Int64[]
-    for i in 0:num_memory_channels - 1
-        push!(reads, Lib.getMCCounter(i, Int(READ), before[idx], after[idx]))
-    end
-    return reads
-end
+dram_reads(U::UncoreMemoryMonitor, socket)  = getcounter(U.before, U.after, READ, U.num_memory_channels, socket + 1)
+dram_writes(U::UncoreMemoryMonitor, socket) = getcounter(U.before, U.after, WRITE, U.num_memory_channels, socket + 1)
+pmm_reads(U::UncoreMemoryMonitor, socket)   = getcounter(U.before, U.after, PMM_READ, U.num_memory_channels, socket + 1)
+pmm_writes(U::UncoreMemoryMonitor, socket)  = getcounter(U.before, U.after, PMM_WRITE, U.num_memory_channels, socket + 1)
 
-function dram_writes(before, after, num_memory_channels, idx::Integer)
-    writes = Int64[]
-    for i in 0:num_memory_channels - 1
-        push!(writes, Lib.getMCCounter(i, Int(WRITE), before[idx], after[idx]))
-    end
-    return writes
-end
+getcounter(U::UncoreMemoryMonitor, counter, socket) = getcounter(U.before, U.after, counter, U.num_memory_channels, socket + 1)
 
-function pmm_reads(before, after, num_memory_channels, idx::Integer)
-    reads = Int64[]
-    for i in 0:num_memory_channels-1
-        push!(reads, Lib.getMCCounter(i, Int(PMM_READ), before[idx], after[idx]))
-    end
-    return reads
-end
-
-function pmm_writes(before, after, num_memory_channels, idx::Integer)
-    writes = Int64[]
-    for i in 0:num_memory_channels-1
-        push!(writes, Lib.getMCCounter(i, Int(PMM_WRITE), before[idx], after[idx]))
-    end
-    return writes
-end
-
+getcounter(before, after, counter, nchannels, socket) = 
+    [convert(Int, Lib.getMCCounter(i-1, convert(Int, counter), before[socket], after[socket])) for i in 1:nchannels]
 
 # This method was transcribed from "pcm/pcm-memory.cpp", line: 667-692
 function pmm_hitrate(before, after, num_memory_channels, num_memory_controllers, idx)
@@ -121,7 +92,6 @@ function pmm_hitrate(before, after, num_memory_channels, num_memory_controllers,
     end
     return hitrates
 end
-
 
 # 
 # 

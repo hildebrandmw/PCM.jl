@@ -3,7 +3,7 @@ using CxxWrap, LibGit2
 # Path to the CxxWrap dependencies
 cxxhome = dirname(dirname(CxxWrap.jlcxx_path))
 
-url = "https://github.com/opcm/pcm"
+url = "https://github.com/hildebrandmw/pcm"
 branch = "master"
 localdir = joinpath(@__DIR__, "pcm")
 ispath(localdir) || LibGit2.clone(url, localdir; branch = branch)

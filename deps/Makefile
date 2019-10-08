@@ -7,7 +7,7 @@ DIRECTORIES = build
 
 OPT= -g -O3
 CXXFLAGS+= -Wall -fPIC $(OPT) -std=c++14 -DPCM_SILENT -DJULIA_ENABLE_THREADING -Dexcept_EXPORTS -I$(CXXWRAP_HOME)/include -I$(JULIA_HOME)/include/julia 
-CXXFLAGS+= -I./pcm
+CXXFLAGS+= -I./pcm #-DPCM_USE_PERF
 
 vpath %.cpp ./pcm .
 
