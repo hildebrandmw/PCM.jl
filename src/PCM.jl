@@ -35,9 +35,9 @@ struct EventDescription
     end
 end
 
-function Base.show(io::IO, E::EventDescription) 
-    print(io, 
-        "PCM Event -- event: 0x", 
+function Base.show(io::IO, E::EventDescription)
+    print(io,
+        "PCM Event -- event: 0x",
         string(E.event_number; base = 16),
         ", umask: 0x",
         string(E.umask_value; base = 16),
@@ -56,9 +56,9 @@ mutable struct CoreMonitor
         pcm = Lib.getInstance()
         wrapper = Lib.CounterWrapper()
 
-        # Do some processing on the on the `cores` argument - make sure all values are 
+        # Do some processing on the on the `cores` argument - make sure all values are
         # within the valid core range, materialize it etc.
-        cores = sort(Vector(cores)) 
+        cores = sort(Vector(cores))
         if first(cores) < 0
             throw(ArgumentError("Core numbers must be greater than zero"))
         end
@@ -68,7 +68,7 @@ mutable struct CoreMonitor
         end
 
         # Subtract 1 from everything since we're using this to talk with the C++ code.
-        cores .= cores .- 1 
+        cores .= cores .- 1
 
         monitor = new(
             pcm,
@@ -77,8 +77,6 @@ mutable struct CoreMonitor
             EventDescription[],
         )
 
-        # Cleanup the PMUs when done.
-        finalizer(_ -> cleanup(), monitor)
         return monitor
     end
 end
@@ -102,7 +100,7 @@ function program(monitor::CoreMonitor, events::Vector{EventDescription})
     event_numbers = [i.event_number for i in events]
     umask_values = [i.umask_value for i in events]
     resize!(events, original_size)
-    
+
     # Program the event counters.
     err = Lib.program(monitor.pcm, event_numbers, umask_values)
 
@@ -117,8 +115,8 @@ function program(monitor::CoreMonitor, events::Vector{EventDescription})
     monitor.events = events
 
     # Sample twice to initialize the counter arrays
-    sample!(monitor)  
-    sample!(monitor)  
+    sample!(monitor)
+    sample!(monitor)
 
     return err
 end
@@ -166,8 +164,8 @@ function UncoreMemoryMonitor(num_memory_controllers, num_memory_channels)
     # Instantiate the dual arrays for sampling and do a quick sample so
     before = Vector{Lib.ServerUncorePowerState}()
     after = Vector{Lib.ServerUncorePowerState}()
-    sample_uncore!(pcm, before)
-    sample_uncore!(pcm, after)
+    _sample!(pcm, before)
+    _sample!(pcm, after)
 
     obj = UncoreMemoryMonitor(
         pcm,
@@ -184,7 +182,7 @@ function sample!(U::UncoreMemoryMonitor)
     U.before, U.after = U.after, U.before
 
     # Fill the new `after` state with the values of the counters.
-    sample_uncore!(U.pcm, U.after)
+    _sample!(U.pcm, U.after)
     return nothing
 end
 
@@ -195,7 +193,7 @@ function _sample!(m::Lib.PCMRef, counters::Vector{Lib.ServerUncorePowerState})
     end
 end
 
-function getcounter(U::UncoreMemoryMonitor, counter, socket) 
+function getcounter(U::UncoreMemoryMonitor, counter, socket)
     return getcounter(U.before, U.after, counter, U.num_memory_channels, socket + 1)
 end
 
