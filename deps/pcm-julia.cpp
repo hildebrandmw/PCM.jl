@@ -2,12 +2,16 @@
 ///// Julia Wrappers
 /////
 
-// Julia CXX wrapp
+#include <iostream>
+#include <algorithm>
+#include <tuple>
+
+// Julia CXX wrap
 #include "pcm-julia.h"
 #include "pcm/cpucounters.h"
 
 #include "jlcxx/jlcxx.hpp"
-#include "jlcxx/functions.hpp"
+#include "jlcxx/tuple.hpp"
 
 namespace jlcxx
 {
@@ -17,21 +21,39 @@ namespace jlcxx
 
 JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
 {
-    // ErrorCode Enum
-    mod.add_bits<PCM::ErrorCode>("ErrorCode");
-    mod.set_const("Success", PCM::Success);
-    mod.set_const("MSRAccessDenied", PCM::MSRAccessDenied);
-    mod.set_const("PMUBusy", PCM::PMUBusy);
-    mod.set_const("UnknownError", PCM::UnknownError);
+    // errorcode Enum
+    mod.add_bits<PCM::ErrorCode>("PCM_ErrorCode");
+    mod.set_const("PCM_Success", PCM::Success);
+    mod.set_const("PCM_MSRAccessDenied", PCM::MSRAccessDenied);
+    mod.set_const("PCM_PMUBusy", PCM::PMUBusy);
+    mod.set_const("PCM_UnknownError", PCM::UnknownError);
 
-    // Return the maximum number of memory channels
+    // return the maximum number of memory channels
     mod.method("maxchannels", [](){ return (int64_t)ServerUncorePowerState::maxChannels; });
 
     /////
-    ///// Core Events
+    ///// core events
     /////
 
-    mod.method("tuple_test", [](std::tuple
+    // note: length of `event_numbers` and `umask_values` must both be 4!!
+    // julia code will manage this.
+    mod.method("program", [](
+            PCM* m,
+            int64_t* event_numbers,
+            int64_t* umask_values)
+    {
+        // construct events from the passed numbers and masks.
+        PCM::CustomCoreEventDescription events[4];
+        for (int i = 0; i < 4; i++)
+        {
+            events[i].event_number = event_numbers[i];
+            events[i].umask_value = umask_values[i];
+        }
+        return m->program(PCM::CUSTOM_CORE_EVENTS, &events);
+    });
+
+    mod.add_type<CounterWrapper>("CounterWrapper")
+        .method("read_counters", &CounterWrapper::read_counters);
 
     // ProgramMode enum
     mod.add_bits<PCM::ProgramMode>("ProgramMode");
@@ -56,16 +78,6 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
         return (uint64_t) getMCCounter(channel, counter, before, after);
     });
 
-    mod.method("getM2MCounter", [](
-            uint32_t channel,
-            uint32_t counter,
-            ServerUncorePowerState& before,
-            ServerUncorePowerState& after
-        )
-        {
-            return (uint64_t) getM2MCounter(channel, counter, before, after);
-        });
-
     // PCM Type
     mod.add_type<PCM>("PCM")
         .method("getInstance", &PCM::getInstance)
@@ -74,12 +86,11 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
         .method("getNumSockets", &PCM::getNumSockets)
         .method("getQPILinksPerSocket", &PCM::getQPILinksPerSocket)
         .method("getMCChannels", &PCM::getMCChannels)
-        // API Stuff
-        .method("program", &PCM::program)
+        .method("getMaxCustomCoreEvents", &PCM::getMaxCustomCoreEvents)
+        // Misc Stuff
         .method("resetPMU", &PCM::resetPMU)
-    .method("cleanup", &PCM::cleanup)
-
-    // Uncore
-    .method("programServerUncoreMemoryMetrics", &PCM::programServerUncoreMemoryMetrics)
-    .method("getServerUncorePowerState", &PCM::getServerUncorePowerState);
+        .method("cleanup", &PCM::cleanup)
+        // Uncore
+        .method("programServerUncoreMemoryMetrics", &PCM::programServerUncoreMemoryMetrics)
+        .method("getServerUncorePowerState", &PCM::getServerUncorePowerState);
 }
