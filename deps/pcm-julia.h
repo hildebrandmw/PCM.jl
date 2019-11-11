@@ -15,8 +15,6 @@ class CounterWrapper
 
 public:
     void sample(PCM * m);
-    uint64_t incomingQPILinkBytes(uint32 socketNr, uint32 linkNr) const;
-    uint64_t outgoingQPILinkBytes(uint32 socketNr, uint32 linkNr) const;
 };
 
 #endif
