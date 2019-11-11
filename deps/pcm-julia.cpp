@@ -9,6 +9,7 @@
 // Julia CXX wrap
 #include "pcm-julia.h"
 #include "pcm/cpucounters.h"
+#include "pcm/types.h"
 
 #include "jlcxx/jlcxx.hpp"
 #include "jlcxx/tuple.hpp"
@@ -43,24 +44,33 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
             int64_t* umask_values)
     {
         // construct events from the passed numbers and masks.
-        PCM::CustomCoreEventDescription events[4];
+        EventSelectRegister regs[PERF_MAX_COUNTERS];
+        PCM::ExtendedCustomCoreEventDescription conf;
+        conf.fixedCfg = NULL; // default
+        conf.nGPCounters = m->getMaxCustomCoreEvents();
+        conf.gpCounterCfg = regs;
+
         for (int i = 0; i < 4; i++)
         {
-            events[i].event_number = event_numbers[i];
-            events[i].umask_value = umask_values[i];
+            // Initialization code taken from `pcm-core.cpp`
+            regs[i].value = 0;
+            regs[i].fields.usr = 1;
+            regs[i].fields.os = 1;
+            regs[i].fields.enable = 1;
+
+            regs[i].fields.event_select = event_numbers[i];
+            regs[i].fields.umask = umask_values[i];
         }
-        return m->program(PCM::CUSTOM_CORE_EVENTS, &events);
+        return m->program(PCM::EXT_CUSTOM_CORE_EVENTS, &conf);
     });
 
     mod.add_type<CounterWrapper>("CounterWrapper")
-        .method("read_counters", &CounterWrapper::read_counters);
+        .method("sample", &CounterWrapper::sample)
+        .method("aggregate_counters", &CounterWrapper::aggregate_counters);
 
-    // ProgramMode enum
-    mod.add_bits<PCM::ProgramMode>("ProgramMode");
-    mod.set_const("DEFAULT_EVENTS", PCM::DEFAULT_EVENTS);
-    mod.set_const("CUSTOM_CORE_EVENTS", PCM::CUSTOM_CORE_EVENTS);
-    mod.set_const("EXT_CUSTOM_CORE_EVENTS", PCM::EXT_CUSTOM_CORE_EVENTS);
-    mod.set_const("INVALID_MODE", PCM::INVALID_MODE);
+    /////
+    ///// Uncore Counters
+    /////
 
     // Wrap the Uncore Counter
     mod.add_type<ServerUncorePowerState>("ServerUncorePowerState");

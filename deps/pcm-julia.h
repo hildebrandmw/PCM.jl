@@ -2,6 +2,8 @@
 #define PCM_JULIA_HEADERS
 
 #include <tuple>
+#include <iostream>
+
 #include "pcm/cpucounters.h"
 
 class CounterWrapper
@@ -22,27 +24,26 @@ class CounterWrapper
 
         m->getAllCounterStates(system_counters_after, 
                                socket_counters_after, 
-                               core_counters_before);
+                               core_counters_after);
     }
 
-    std::tuple<int64_t, int64_t, int64_t, int64_t> read_counters(PCM* m,
-                                                                 int64_t* cores,
-                                                                 int64_t len)
+    std::tuple<int64_t, int64_t, int64_t, int64_t> aggregate_counters(PCM* m,
+                                                                      int64_t* cores,
+                                                                      int64_t len)
     {
         // Aggregate across all cores.
-        int64_t a[4];
+        int64_t a[4] = {0, 0, 0, 0};
         for (size_t i = 0; i < 4; i++)
         {
-            for (size_t j = 0; j < len; j++)
+            for (int64_t j = 0; j < len; j++)
             {
                 a[i] += getNumberOfCustomEvents(i,
                                                 core_counters_before[cores[j]],
                                                 core_counters_after[cores[j]]);
-                
             }
         }
 
-        return std::make_tuple(a[1], a[2], a[3], a[4]);
+        return std::make_tuple(a[0], a[1], a[2], a[3]);
     }
 };
 

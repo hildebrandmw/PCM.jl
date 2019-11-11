@@ -21,30 +21,18 @@ numcores() = convert(Int, Lib.getNumCores(pcm()))
 ##### Core Counters
 #####
 
-mutable struct CoreMonitor
-    pcm::Lib.PCMRef
-    wrapper::Lib.CounterWrapperAllocated
-
-    # Inner constructore - need to get the reference to the singular PCM instance as well
-    # as instantiate a `CounterWrapper` for storing counter values.
-    function CoreMonitor()
-        pcm = Lib.getInstance()
-        wrapper = Lib.CounterWrapper()
-    
-        monitor = new(
-            pcm,
-            wrapper,
-        )
-
-        # Cleanup the PMUs when done.
-        finalizer(_ -> cleanup(), monitor)
-        return monitor
-    end
-end
-
 struct EventDescription
     event_number::Int64
     umask_value::Int64
+    name::Symbol
+
+    function EventDescription(event::Integer, umask::Integer, name = :unknown_event)
+        return new(
+            convert(Int64, event),
+            convert(Int64, umask),
+            name
+        )
+    end
 end
 
 function Base.show(io::IO, E::EventDescription) 
@@ -56,7 +44,48 @@ function Base.show(io::IO, E::EventDescription)
     )
 end
 
+mutable struct CoreMonitor
+    pcm::Lib.PCMRef
+    wrapper::Lib.CounterWrapperAllocated
+    cores::Vector{Int64}
+    events::Vector{EventDescription}
+
+    # Inner constructore - need to get the reference to the singular PCM instance as well
+    # as instantiate a `CounterWrapper` for storing counter values.
+    function CoreMonitor(; cores::AbstractVector = 1:numcores())
+        pcm = Lib.getInstance()
+        wrapper = Lib.CounterWrapper()
+
+        # Do some processing on the on the `cores` argument - make sure all values are 
+        # within the valid core range, materialize it etc.
+        cores = sort(Vector(cores)) 
+        if first(cores) < 0
+            throw(ArgumentError("Core numbers must be greater than zero"))
+        end
+
+        if last(cores) > numcores()
+            throw(ArgumentError("Core numbers must be less than or equal to $(numcores())"))
+        end
+
+        # Subtract 1 from everything since we're using this to talk with the C++ code.
+        cores .= cores .- 1 
+
+        monitor = new(
+            pcm,
+            wrapper,
+            cores,
+            EventDescription[],
+        )
+
+        # Cleanup the PMUs when done.
+        finalizer(_ -> cleanup(), monitor)
+        return monitor
+    end
+end
+
 function program(monitor::CoreMonitor, events::Vector{EventDescription})
+    original_size = length(events)
+
     # If more than MAX_CUSTOM_EVENTS events are provided, throw an error.
     if length(events) > MAX_CUSTOM_EVENTS
         err = ArgumentError("Number of events must be less than or equal to 4!")
@@ -72,11 +101,41 @@ function program(monitor::CoreMonitor, events::Vector{EventDescription})
     # Convert the array of structs into two arrays
     event_numbers = [i.event_number for i in events]
     umask_values = [i.umask_value for i in events]
+    resize!(events, original_size)
     
-    # TODO: Better error handling.
-    return Lib.program(monitor.pcm, event_numbers, umask_values)
+    # Program the event counters.
+    err = Lib.program(monitor.pcm, event_numbers, umask_values)
+
+    if err == Lib.PCM_MSRAccessDenied
+        throw(error("Cannot Access MSR"))
+    elseif err == Lib.PCM_PMUBusy
+        throw(error("PMU is Busy"))
+    elseif err == Lib.PCM_UnknownError
+        throw(error("Unknow Error!"))
+    end
+
+    monitor.events = events
+
+    # Sample twice to initialize the counter arrays
+    sample!(monitor)  
+    sample!(monitor)  
+
+    return err
 end
 
+sample!(monitor::CoreMonitor) = Lib.sample(monitor.wrapper, monitor.pcm)
+
+function getcounters(monitor)
+    cores = monitor.cores
+    values = Lib.aggregate_counters(monitor.wrapper, monitor.pcm, cores, length(cores))
+
+    return collect(values)[1:length(monitor.events)]
+end
+
+function sample_and_read(monitor)
+    sample!(monitor)
+    return getcounters(monitor)
+end
 
 #####
 ##### Uncore Counters
