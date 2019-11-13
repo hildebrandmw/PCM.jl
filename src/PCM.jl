@@ -36,12 +36,14 @@ struct EventDescription
 end
 
 function Base.show(io::IO, E::EventDescription)
-    print(io,
-        "PCM Event -- event: 0x",
+    print(
+        io,
+        "PCM Event \'$(E.name)\'-- event: 0x",
         string(E.event_number; base = 16),
         ", umask: 0x",
         string(E.umask_value; base = 16),
     )
+    return nothing
 end
 
 mutable struct CoreMonitor
@@ -121,18 +123,16 @@ function program(monitor::CoreMonitor, events::Vector{EventDescription})
     return err
 end
 
+# Swap the double-buffered counters and store the current counter state into the `after`
+# set of counters.
 sample!(monitor::CoreMonitor) = Lib.sample(monitor.wrapper, monitor.pcm)
 
+# Get the values of the counters in `monitor`.
 function getcounters(monitor)
     cores = monitor.cores
     values = Lib.aggregate_counters(monitor.wrapper, monitor.pcm, cores, length(cores))
 
     return collect(values)[1:length(monitor.events)]
-end
-
-function sample_and_read(monitor)
-    sample!(monitor)
-    return getcounters(monitor)
 end
 
 #####
