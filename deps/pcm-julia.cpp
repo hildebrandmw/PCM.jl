@@ -44,6 +44,8 @@ JLCXX_MODULE define_julia_module(jlcxx::Module& mod)
             int64_t* umask_values)
     {
         // construct events from the passed numbers and masks.
+        //
+        // NOTE: PERF_MAX_COUNTERS is a macro defined deep somewhere in the PCM source code.
         EventSelectRegister regs[PERF_MAX_COUNTERS];
         PCM::ExtendedCustomCoreEventDescription conf;
         conf.fixedCfg = NULL; // default
